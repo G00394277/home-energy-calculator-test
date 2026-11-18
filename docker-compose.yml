@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-energy}
+      POSTGRES_USER: ${POSTGRES_USER:-energy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-energy} -d ${POSTGRES_DB:-energy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  appliance-service:
+    build: ./backend/appliance-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://energy:${POSTGRES_PASSWORD}@db:5432/energy
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  heating-service:
+    build: ./backend/heating-service
+    ports:
+      - "8002:8000"
+
+  gateway:
+    build: ./backend/gateway
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - appliance-service
+      - heating-service
+
+volumes:
+  postgres_data:
